@@ -174,6 +174,10 @@ def get_daily_sales(date: datetime.date, full_day: bool = False) -> tuple[list[d
                 if name:
                     break
 
+        print(f"[NAME] order_id={order.get('id')} name={repr(name)} billing={repr(first_payment.get('billing_address'))} customer_id={first_payment.get('customer_id')} amount={amount_paid}")
+        if not name:
+            print(f"[NAMELESS] order_id={order.get('id')} tenders={[t.get('type') for t in tenders]} amount={amount_paid}")
+
         num_tickets = _ticket_count(order) if order_type == "Ticket" else 0
 
         created_at_str = order.get("created_at", "")
