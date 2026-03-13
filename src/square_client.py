@@ -119,10 +119,14 @@ def get_daily_sales(date: datetime.date, full_day: bool = False) -> tuple[list[d
         if result.is_error():
             raise RuntimeError(f"Square SearchOrders error: {result.errors}")
         body_resp = result.body
+        print(f"[DEBUG] SearchOrders response keys: {list(body_resp.keys())}")
+        print(f"[DEBUG] Orders in response: {len(body_resp.get('orders') or [])}")
         orders.extend(body_resp.get("orders") or [])
         cursor = body_resp.get("cursor")
         if not cursor:
             break
+
+    print(f"[DEBUG] Request body: location_ids={body['location_ids']}, start={start_at}, end={end_at}")
 
     transactions = []
     for order in orders:
