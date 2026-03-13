@@ -98,7 +98,7 @@ def get_daily_sales(date: datetime.date, full_day: bool = False) -> tuple[list[d
         "location_ids": [location_id],
         "query": {
             "filter": {
-                "state_filter": {"states": ["COMPLETED"]},
+                "state_filter": {"states": ["OPEN", "COMPLETED"]},
                 "date_time_filter": {
                     "created_at": {
                         "start_at": start_at,
