@@ -1,4 +1,4 @@
-squareup==44.0.1.20260122
+squareup==39.1.0.20241218
 gspread==6.1.4
 google-auth==2.38.0
 requests==2.32.3
