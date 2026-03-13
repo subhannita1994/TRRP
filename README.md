@@ -1,6 +1,6 @@
 # TRRP Nightly Sales Automation
 
-Runs every night at 10 PM ET via GitHub Actions. Pulls daily sales from Square (donations + tickets), appends them to the `SquareSales` tab in the `TheRedRoomProject-2026` Google Spreadsheet, and sends a WhatsApp summary via CallMeBot.
+Runs every night at 10 PM ET via GitHub Actions. Pulls daily sales from Square (donations + tickets), appends them to the `SquareSales` tab in the `TheRedRoomProject-2026` Google Spreadsheet, and sends a summary email via Gmail.
 
 ## Project Structure
 
@@ -12,7 +12,7 @@ TRRP/
 │   ├── main.py                    # Orchestrator
 │   ├── square_client.py           # Square Orders API
 │   ├── sheets_client.py           # Google Sheets read/write
-│   └── whatsapp_notifier.py       # CallMeBot WhatsApp
+│   └── email_notifier.py          # Gmail SMTP notification
 ├── requirements.txt
 └── README.md
 ```
@@ -49,12 +49,16 @@ TRRP/
 
 ---
 
-### 3. CallMeBot WhatsApp
+### 3. Gmail App Password
 
-1. Save the CallMeBot WhatsApp number in your phone contacts: **+34 644 37 79 39** (verify at [callmebot.com](https://www.callmebot.com/blog/free-api-whatsapp-messages/)).
-2. Send this message to that contact on WhatsApp: `I allow callmebot to send me messages`
-3. You will receive a reply with your **API key** → `CALLMEBOT_API_KEY`.
-4. Your phone number in international format (e.g., `+15551234567`) → `CALLMEBOT_PHONE`.
+The script sends email from your Gmail address to yourself using an App Password (no OAuth needed).
+
+1. Go to [myaccount.google.com](https://myaccount.google.com) → **Security**
+2. Make sure **2-Step Verification** is enabled (required for App Passwords)
+3. Search **"App passwords"** in the Security page search bar
+4. Click **App passwords** → create one named e.g. `TRRP Script`
+5. Copy the 16-character password → `GMAIL_APP_PASSWORD` secret
+6. Your Gmail address (e.g. `you@gmail.com`) → `GMAIL_ADDRESS` secret
 
 ---
 
@@ -70,8 +74,8 @@ In your GitHub repo, go to **Settings → Secrets and Variables → Actions → 
 | `SQUARE_TICKET_ITEM_NAME` | Line item name (or substring) on the ticket payment link |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Full JSON content of the service account key file |
 | `GOOGLE_SPREADSHEET_ID` | ID from the TheRedRoomProject-2026 spreadsheet URL |
-| `CALLMEBOT_PHONE` | Your WhatsApp phone number (international format) |
-| `CALLMEBOT_API_KEY` | API key received from CallMeBot activation |
+| `GMAIL_ADDRESS` | Your Gmail address (send-from and send-to) |
+| `GMAIL_APP_PASSWORD` | 16-character App Password from Google Account → Security |
 
 ---
 
@@ -86,8 +90,8 @@ export SQUARE_DONATION_ITEM_NAME=...
 export SQUARE_TICKET_ITEM_NAME=...
 export GOOGLE_SERVICE_ACCOUNT_JSON='{ ... }'
 export GOOGLE_SPREADSHEET_ID=...
-export CALLMEBOT_PHONE=...
-export CALLMEBOT_API_KEY=...
+export GMAIL_ADDRESS=...
+export GMAIL_APP_PASSWORD=...
 
 python src/main.py
 ```
@@ -96,8 +100,11 @@ You can also trigger the workflow manually from the GitHub Actions tab using the
 
 ---
 
-## WhatsApp Message Format
+## Email Format
 
+**Subject:** `TRRP Daily Sales Report - Mar 12, 2026`
+
+**Body:**
 ```
 Daily Sales Report - Mar 12, 2026
 Donations: $100.00
@@ -114,4 +121,3 @@ TRRP total after fees: $185.50
 - **DST drift**: The cron is fixed at 3 AM UTC. This equals 10 PM EST (Nov–Mar) and 11 PM EDT (Mar–Nov). One hour of drift during summer is acceptable since all same-day sales are still captured.
 - **Name matching**: New/Repeat detection uses exact case-insensitive matching against the `GuestList-2025` tab. If you need fuzzy matching (e.g., "Bob" vs "Robert"), add `thefuzz` to `requirements.txt` and update `main.py`.
 - **Square sandbox**: Set `environment="sandbox"` in `square_client.py` and use sandbox credentials to test without real transactions.
-- **CallMeBot limits**: Free tier, not SLA-backed. For production reliability consider [Green API](https://green-api.com/) or Telegram.

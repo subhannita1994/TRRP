@@ -5,9 +5,9 @@ import sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+import email_notifier
 import sheets_client
 import square_client
-import whatsapp_notifier
 
 EASTERN = ZoneInfo("America/New_York")
 
@@ -27,7 +27,7 @@ def main() -> None:
         error_msg = f"Square fetch failed: {exc}"
         print(f"ERROR: {error_msg}", file=sys.stderr)
         try:
-            whatsapp_notifier.send_error(today, error_msg)
+            email_notifier.send_error(today, error_msg)
         except Exception as wa_exc:
             print(f"WhatsApp error alert also failed: {wa_exc}", file=sys.stderr)
         sys.exit(1)
@@ -62,9 +62,9 @@ def main() -> None:
         summary_note = ""
 
     try:
-        whatsapp_notifier.send_summary(today, summary)
+        email_notifier.send_summary(today, summary)
         if summary_note:
-            whatsapp_notifier.send_error(today, f"Sheet update failed: {sheet_error}")
+            email_notifier.send_error(today, f"Sheet update failed: {sheet_error}")
         print("WhatsApp summary sent.")
     except Exception as exc:
         print(f"ERROR: WhatsApp notification failed: {exc}", file=sys.stderr)
