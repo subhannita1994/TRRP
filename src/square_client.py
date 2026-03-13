@@ -128,6 +128,25 @@ def get_daily_sales(date: datetime.date, full_day: bool = False) -> tuple[list[d
 
     print(f"[DEBUG] Request body: location_ids={body['location_ids']}, start={start_at}, end={end_at}")
 
+    # Debug: print the first order's full structure to find buyer info fields
+    if orders:
+        first = orders[0]
+        import json as _json
+        print(f"[DEBUG] First order keys: {list(first.keys())}")
+        print(f"[DEBUG] First order tenders: {_json.dumps(first.get('tenders') or [], default=str)[:300]}")
+        print(f"[DEBUG] First order fulfillments: {_json.dumps(first.get('fulfillments') or [], default=str)[:300]}")
+        print(f"[DEBUG] First order metadata: {first.get('metadata')}")
+        # Also print the payment object for the first tender
+        first_tenders = first.get("tenders") or []
+        if first_tenders and first_tenders[0].get("payment_id"):
+            _pr = client.payments.get_payment(payment_id=first_tenders[0]["payment_id"])
+            if _pr.is_success():
+                _pay = _pr.body.get("payment", {})
+                print(f"[DEBUG] Payment keys: {list(_pay.keys())}")
+                print(f"[DEBUG] Payment buyer_email: {_pay.get('buyer_email_address')}")
+                print(f"[DEBUG] Payment shipping_address: {_pay.get('shipping_address')}")
+                print(f"[DEBUG] Payment billing_address: {_pay.get('billing_address')}")
+
     transactions = []
     for order in orders:
         order_type = _classify_order(order)

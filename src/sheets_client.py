@@ -77,4 +77,4 @@ def append_to_square_sales(transactions: list[dict]) -> None:
             ]
         )
 
-    worksheet.append_rows(rows, value_input_option="USER_ENTERED")
+    worksheet.append_rows(rows, value_input_option="USER_ENTERED", table_range="A1")
