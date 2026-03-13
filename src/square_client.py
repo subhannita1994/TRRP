@@ -126,6 +126,11 @@ def get_daily_sales(date: datetime.date, full_day: bool = False) -> tuple[list[d
 
     transactions = []
     for order in orders:
+        tenders = order.get("tenders") or []
+        if not tenders:
+            # No payment captured — abandoned/incomplete order; skip it
+            continue
+
         order_type = _classify_order(order)
         amount_paid = _cents_to_dollars(
             (order.get("total_money") or {}).get("amount")
@@ -134,7 +139,6 @@ def get_daily_sales(date: datetime.date, full_day: bool = False) -> tuple[list[d
         # Fetch payment(s) for processing fee and buyer info
         processing_fee = 0.0
         first_payment: dict = {}
-        tenders = order.get("tenders") or []
         for tender in tenders:
             payment_id = tender.get("payment_id")
             if payment_id:
@@ -174,7 +178,6 @@ def get_daily_sales(date: datetime.date, full_day: bool = False) -> tuple[list[d
                 if name:
                     break
 
-        print(f"[NAME] order_id={order.get('id')} name={repr(name)} billing={repr(first_payment.get('billing_address'))} customer_id={first_payment.get('customer_id')} amount={amount_paid}")
         if not name:
             print(f"[NAMELESS] order_id={order.get('id')} tenders={[t.get('type') for t in tenders]} amount={amount_paid}")
 
