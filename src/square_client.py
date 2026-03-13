@@ -71,7 +71,7 @@ def _ticket_count(order: dict) -> int:
     return total
 
 
-def get_daily_sales(date: datetime.date) -> tuple[list[dict], dict]:
+def get_daily_sales(date: datetime.date, full_day: bool = False) -> tuple[list[dict], dict]:
     """
     Fetch all completed orders for `date` (Eastern time).
 
@@ -87,7 +87,9 @@ def get_daily_sales(date: datetime.date) -> tuple[list[dict], dict]:
     location_id = os.environ["SQUARE_LOCATION_ID"]
 
     start_dt = datetime.combine(date, time.min).replace(tzinfo=EASTERN)
-    end_dt = datetime.combine(date, time(22, 0)).replace(tzinfo=EASTERN)
+    # For past dates (backfill), fetch the full day; for today, stop at 10 PM
+    end_time = time(23, 59, 59) if full_day else time(22, 0)
+    end_dt = datetime.combine(date, end_time).replace(tzinfo=EASTERN)
 
     start_at = start_dt.isoformat()
     end_at = end_dt.isoformat()

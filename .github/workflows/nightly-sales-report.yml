@@ -5,6 +5,16 @@ on:
     # 3 AM UTC = 10 PM EST (Nov–Mar) / 11 PM EDT (Mar–Nov)
     - cron: "0 3 * * *"
   workflow_dispatch:
+    inputs:
+      date:
+        description: "Single date (YYYY-MM-DD). Leave blank for today."
+        required: false
+      from_date:
+        description: "Backfill start date (YYYY-MM-DD)"
+        required: false
+      to_date:
+        description: "Backfill end date (YYYY-MM-DD)"
+        required: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -36,4 +46,11 @@ jobs:
           GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
           GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-        run: python src/main.py
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.from_date }}" ] && [ -n "${{ github.event.inputs.to_date }}" ]; then
+            ARGS="--from ${{ github.event.inputs.from_date }} --to ${{ github.event.inputs.to_date }}"
+          elif [ -n "${{ github.event.inputs.date }}" ]; then
+            ARGS="--date ${{ github.event.inputs.date }}"
+          fi
+          python src/main.py $ARGS
