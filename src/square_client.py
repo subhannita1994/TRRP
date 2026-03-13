@@ -40,34 +40,30 @@ def _get_customer(client: Client, customer_id: str) -> dict:
 
 
 def _classify_order(order: dict) -> str:
-    """Return 'Donation' or 'Ticket' based on line item names or source."""
-    donation_link_id = os.environ.get("SQUARE_DONATION_LINK_ID", "").lower()
-    ticket_link_id = os.environ.get("SQUARE_TICKET_LINK_ID", "").lower()
+    """
+    Return 'Donation' or 'Ticket' by matching line item names against
+    SQUARE_DONATION_ITEM_NAME and SQUARE_TICKET_ITEM_NAME (case-insensitive
+    substring match). Falls back to built-in keywords if env vars are unset.
+    """
+    donation_keyword = os.environ.get("SQUARE_DONATION_ITEM_NAME", "donation").lower()
+    ticket_keyword = os.environ.get("SQUARE_TICKET_ITEM_NAME", "ticket").lower()
 
-    # Check order source name
-    source_name = (order.get("source") or {}).get("name", "").lower()
-    if donation_link_id and donation_link_id in source_name:
-        return "Donation"
-    if ticket_link_id and ticket_link_id in source_name:
-        return "Ticket"
-
-    # Fallback: inspect line item names
     for item in order.get("line_items") or []:
-        name = item.get("name", "").lower()
-        if "donation" in name or "donate" in name:
+        item_name = item.get("name", "").lower()
+        if donation_keyword and donation_keyword in item_name:
             return "Donation"
-        if "ticket" in name:
+        if ticket_keyword and ticket_keyword in item_name:
             return "Ticket"
 
-    # Fallback: check fulfillments / metadata
+    # If no line items matched, default to Ticket
     return "Ticket"
 
 
 def _ticket_count(order: dict) -> int:
+    ticket_keyword = os.environ.get("SQUARE_TICKET_ITEM_NAME", "ticket").lower()
     total = 0
     for item in order.get("line_items") or []:
-        name = item.get("name", "").lower()
-        if "ticket" in name:
+        if ticket_keyword in item.get("name", "").lower():
             try:
                 total += int(float(item.get("quantity", "0")))
             except ValueError:

@@ -26,9 +26,9 @@ TRRP/
 1. Go to [Square Developer Dashboard](https://developer.squareup.com/apps) and create (or select) your app.
 2. Under **Credentials**, copy the **Production Access Token** → `SQUARE_ACCESS_TOKEN`.
 3. Under **Locations**, copy the **Location ID** for your venue → `SQUARE_LOCATION_ID`.
-4. Find the identifiers for your two payment links (see note below) → `SQUARE_DONATION_LINK_ID`, `SQUARE_TICKET_LINK_ID`.
+4. Find the **line item names** used in each payment link (see note below) → `SQUARE_DONATION_ITEM_NAME`, `SQUARE_TICKET_ITEM_NAME`.
 
-**How to find payment link identifiers**: After placing a test order through each link, look at the order in the Square Dashboard or via the API. The `source.name` field on the order typically contains the payment link name. Set `SQUARE_DONATION_LINK_ID` to a substring of that name (e.g., `"donation"`) and `SQUARE_TICKET_LINK_ID` to a substring of the ticket link name (e.g., `"ticket"`). The classification is case-insensitive substring match.
+**How to find line item names**: In the Square Dashboard, go to **Items & Orders → Payment Links**, open each link, and note the item name attached to it (e.g. `"Donation"` or `"General Admission"`). Set `SQUARE_DONATION_ITEM_NAME` to the exact name (or a unique substring) of the donation link's item, and `SQUARE_TICKET_ITEM_NAME` to the ticket link's item name. Matching is case-insensitive substring. If unset, defaults to `"donation"` and `"ticket"` respectively.
 
 ---
 
@@ -66,8 +66,8 @@ In your GitHub repo, go to **Settings → Secrets and Variables → Actions → 
 |---|---|
 | `SQUARE_ACCESS_TOKEN` | Square production access token |
 | `SQUARE_LOCATION_ID` | Square location ID |
-| `SQUARE_DONATION_LINK_ID` | Substring of donation payment link source name |
-| `SQUARE_TICKET_LINK_ID` | Substring of ticket payment link source name |
+| `SQUARE_DONATION_ITEM_NAME` | Line item name (or substring) on the donation payment link |
+| `SQUARE_TICKET_ITEM_NAME` | Line item name (or substring) on the ticket payment link |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Full JSON content of the service account key file |
 | `GOOGLE_SPREADSHEET_ID` | ID from the TheRedRoomProject-2026 spreadsheet URL |
 | `CALLMEBOT_PHONE` | Your WhatsApp phone number (international format) |
@@ -82,8 +82,8 @@ pip install -r requirements.txt
 
 export SQUARE_ACCESS_TOKEN=...
 export SQUARE_LOCATION_ID=...
-export SQUARE_DONATION_LINK_ID=...
-export SQUARE_TICKET_LINK_ID=...
+export SQUARE_DONATION_ITEM_NAME=...
+export SQUARE_TICKET_ITEM_NAME=...
 export GOOGLE_SERVICE_ACCOUNT_JSON='{ ... }'
 export GOOGLE_SPREADSHEET_ID=...
 export CALLMEBOT_PHONE=...
