@@ -119,33 +119,10 @@ def get_daily_sales(date: datetime.date, full_day: bool = False) -> tuple[list[d
         if result.is_error():
             raise RuntimeError(f"Square SearchOrders error: {result.errors}")
         body_resp = result.body
-        print(f"[DEBUG] SearchOrders response keys: {list(body_resp.keys())}")
-        print(f"[DEBUG] Orders in response: {len(body_resp.get('orders') or [])}")
         orders.extend(body_resp.get("orders") or [])
         cursor = body_resp.get("cursor")
         if not cursor:
             break
-
-    print(f"[DEBUG] Request body: location_ids={body['location_ids']}, start={start_at}, end={end_at}")
-
-    # Debug: print the first order's full structure to find buyer info fields
-    if orders:
-        first = orders[0]
-        import json as _json
-        print(f"[DEBUG] First order keys: {list(first.keys())}")
-        print(f"[DEBUG] First order tenders: {_json.dumps(first.get('tenders') or [], default=str)[:300]}")
-        print(f"[DEBUG] First order fulfillments: {_json.dumps(first.get('fulfillments') or [], default=str)[:300]}")
-        print(f"[DEBUG] First order metadata: {first.get('metadata')}")
-        # Also print the payment object for the first tender
-        first_tenders = first.get("tenders") or []
-        if first_tenders and first_tenders[0].get("payment_id"):
-            _pr = client.payments.get_payment(payment_id=first_tenders[0]["payment_id"])
-            if _pr.is_success():
-                _pay = _pr.body.get("payment", {})
-                print(f"[DEBUG] Payment keys: {list(_pay.keys())}")
-                print(f"[DEBUG] Payment buyer_email: {_pay.get('buyer_email_address')}")
-                print(f"[DEBUG] Payment shipping_address: {_pay.get('shipping_address')}")
-                print(f"[DEBUG] Payment billing_address: {_pay.get('billing_address')}")
 
     transactions = []
     for order in orders:
@@ -154,8 +131,9 @@ def get_daily_sales(date: datetime.date, full_day: bool = False) -> tuple[list[d
             (order.get("total_money") or {}).get("amount")
         )
 
-        # Fetch payment for processing fee
+        # Fetch payment(s) for processing fee and buyer info
         processing_fee = 0.0
+        first_payment: dict = {}
         tenders = order.get("tenders") or []
         for tender in tenders:
             payment_id = tender.get("payment_id")
@@ -164,36 +142,18 @@ def get_daily_sales(date: datetime.date, full_day: bool = False) -> tuple[list[d
                 if pay_result.is_success():
                     payment = pay_result.body.get("payment", {})
                     processing_fee += _get_processing_fee(payment)
+                    if not first_payment:
+                        first_payment = payment
 
         amount_after_fees = round(amount_paid - processing_fee, 2)
 
-        # Customer info
-        name, phone, email = "", "", ""
-        customer_id = None
-        for tender in tenders:
-            customer_id = tender.get("customer_id")
-            if customer_id:
-                break
-
-        if customer_id:
-            customer = _get_customer(client, customer_id)
-            given = customer.get("given_name", "")
-            family = customer.get("family_name", "")
-            name = f"{given} {family}".strip()
-            phone = customer.get("phone_number", "")
-            email = customer.get("email_address", "")
-
-        # Fallback to fulfillment / checkout data
-        if not name:
-            for fulfillment in order.get("fulfillments") or []:
-                recipient = fulfillment.get("shipment_details", {}).get(
-                    "recipient", {}
-                )
-                name = recipient.get("display_name", "")
-                email = email or recipient.get("email_address", "")
-                phone = phone or recipient.get("phone_number", "")
-                if name:
-                    break
+        # Buyer info — Square payment links store name in billing_address
+        billing = first_payment.get("billing_address") or {}
+        first_name = billing.get("first_name", "")
+        last_name = billing.get("last_name", "")
+        name = f"{first_name} {last_name}".strip()
+        email = first_payment.get("buyer_email_address", "")
+        phone = ""  # not provided in Square payment link payments
 
         num_tickets = _ticket_count(order) if order_type == "Ticket" else 0
 
