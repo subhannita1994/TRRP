@@ -147,13 +147,32 @@ def get_daily_sales(date: datetime.date, full_day: bool = False) -> tuple[list[d
 
         amount_after_fees = round(amount_paid - processing_fee, 2)
 
-        # Buyer info — Square payment links store name in billing_address
+        # Buyer info — try billing_address first, then customer profile, then fulfillments
         billing = first_payment.get("billing_address") or {}
         first_name = billing.get("first_name", "")
         last_name = billing.get("last_name", "")
         name = f"{first_name} {last_name}".strip()
         email = first_payment.get("buyer_email_address", "")
-        phone = ""  # not provided in Square payment link payments
+        phone = ""
+
+        if not name:
+            customer_id = first_payment.get("customer_id")
+            if customer_id:
+                customer = _get_customer(client, customer_id)
+                given = customer.get("given_name", "")
+                family = customer.get("family_name", "")
+                name = f"{given} {family}".strip()
+                email = email or customer.get("email_address", "")
+                phone = customer.get("phone_number", "")
+
+        if not name:
+            for fulfillment in order.get("fulfillments") or []:
+                recipient = (fulfillment.get("shipment_details") or {}).get("recipient") or {}
+                name = recipient.get("display_name", "")
+                email = email or recipient.get("email_address", "")
+                phone = phone or recipient.get("phone_number", "")
+                if name:
+                    break
 
         num_tickets = _ticket_count(order) if order_type == "Ticket" else 0
 
