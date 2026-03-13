@@ -1,0 +1,36 @@
+name: Nightly Sales Report
+
+on:
+  schedule:
+    # 3 AM UTC = 10 PM EST (Nov–Mar) / 11 PM EDT (Mar–Nov)
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  sales-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run nightly sales report
+        env:
+          SQUARE_ACCESS_TOKEN: ${{ secrets.SQUARE_ACCESS_TOKEN }}
+          SQUARE_LOCATION_ID: ${{ secrets.SQUARE_LOCATION_ID }}
+          SQUARE_DONATION_LINK_ID: ${{ secrets.SQUARE_DONATION_LINK_ID }}
+          SQUARE_TICKET_LINK_ID: ${{ secrets.SQUARE_TICKET_LINK_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          CALLMEBOT_API_KEY: ${{ secrets.CALLMEBOT_API_KEY }}
+        run: python src/main.py

@@ -1,0 +1,219 @@
+"""
+Square API client — fetches daily orders and extracts transaction details.
+"""
+import os
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
+
+from square.client import Client
+
+
+EASTERN = ZoneInfo("America/New_York")
+
+
+def _build_client() -> Client:
+    return Client(
+        access_token=os.environ["SQUARE_ACCESS_TOKEN"],
+        environment="production",
+    )
+
+
+def _cents_to_dollars(cents: int | None) -> float:
+    if cents is None:
+        return 0.0
+    return round(cents / 100, 2)
+
+
+def _get_processing_fee(payment: dict) -> float:
+    total_fee = 0
+    for fee in payment.get("processing_fee") or []:
+        amount = fee.get("amount_money", {}).get("amount") or 0
+        total_fee += amount
+    return _cents_to_dollars(total_fee)
+
+
+def _get_customer(client: Client, customer_id: str) -> dict:
+    result = client.customers.retrieve_customer(customer_id=customer_id)
+    if result.is_success():
+        return result.body.get("customer", {})
+    return {}
+
+
+def _classify_order(order: dict) -> str:
+    """Return 'Donation' or 'Ticket' based on line item names or source."""
+    donation_link_id = os.environ.get("SQUARE_DONATION_LINK_ID", "").lower()
+    ticket_link_id = os.environ.get("SQUARE_TICKET_LINK_ID", "").lower()
+
+    # Check order source name
+    source_name = (order.get("source") or {}).get("name", "").lower()
+    if donation_link_id and donation_link_id in source_name:
+        return "Donation"
+    if ticket_link_id and ticket_link_id in source_name:
+        return "Ticket"
+
+    # Fallback: inspect line item names
+    for item in order.get("line_items") or []:
+        name = item.get("name", "").lower()
+        if "donation" in name or "donate" in name:
+            return "Donation"
+        if "ticket" in name:
+            return "Ticket"
+
+    # Fallback: check fulfillments / metadata
+    return "Ticket"
+
+
+def _ticket_count(order: dict) -> int:
+    total = 0
+    for item in order.get("line_items") or []:
+        name = item.get("name", "").lower()
+        if "ticket" in name:
+            try:
+                total += int(float(item.get("quantity", "0")))
+            except ValueError:
+                pass
+    return total
+
+
+def get_daily_sales(date: datetime.date) -> tuple[list[dict], dict]:
+    """
+    Fetch all completed orders for `date` (Eastern time).
+
+    Returns:
+        transactions: list of dicts with keys:
+            name, phone, email, type, num_tickets,
+            amount_paid, amount_after_fees, date
+        summary: dict with keys:
+            total_donations, total_tickets, donor_names,
+            ticket_buyers (list of {name, tickets}), total_after_fees
+    """
+    client = _build_client()
+    location_id = os.environ["SQUARE_LOCATION_ID"]
+
+    start_dt = datetime.combine(date, time.min).replace(tzinfo=EASTERN)
+    end_dt = datetime.combine(date, time(22, 0)).replace(tzinfo=EASTERN)
+
+    start_at = start_dt.isoformat()
+    end_at = end_dt.isoformat()
+
+    body = {
+        "location_ids": [location_id],
+        "query": {
+            "filter": {
+                "state_filter": {"states": ["COMPLETED"]},
+                "date_time_filter": {
+                    "created_at": {
+                        "start_at": start_at,
+                        "end_at": end_at,
+                    }
+                },
+            }
+        },
+        "return_entries": False,
+    }
+
+    orders = []
+    cursor = None
+    while True:
+        if cursor:
+            body["cursor"] = cursor
+        result = client.orders.search_orders(body=body)
+        if result.is_error():
+            raise RuntimeError(f"Square SearchOrders error: {result.errors}")
+        body_resp = result.body
+        orders.extend(body_resp.get("orders") or [])
+        cursor = body_resp.get("cursor")
+        if not cursor:
+            break
+
+    transactions = []
+    for order in orders:
+        order_type = _classify_order(order)
+        amount_paid = _cents_to_dollars(
+            (order.get("total_money") or {}).get("amount")
+        )
+
+        # Fetch payment for processing fee
+        processing_fee = 0.0
+        tenders = order.get("tenders") or []
+        for tender in tenders:
+            payment_id = tender.get("payment_id")
+            if payment_id:
+                pay_result = client.payments.get_payment(payment_id=payment_id)
+                if pay_result.is_success():
+                    payment = pay_result.body.get("payment", {})
+                    processing_fee += _get_processing_fee(payment)
+
+        amount_after_fees = round(amount_paid - processing_fee, 2)
+
+        # Customer info
+        name, phone, email = "", "", ""
+        customer_id = None
+        for tender in tenders:
+            customer_id = tender.get("customer_id")
+            if customer_id:
+                break
+
+        if customer_id:
+            customer = _get_customer(client, customer_id)
+            given = customer.get("given_name", "")
+            family = customer.get("family_name", "")
+            name = f"{given} {family}".strip()
+            phone = customer.get("phone_number", "")
+            email = customer.get("email_address", "")
+
+        # Fallback to fulfillment / checkout data
+        if not name:
+            for fulfillment in order.get("fulfillments") or []:
+                recipient = fulfillment.get("shipment_details", {}).get(
+                    "recipient", {}
+                )
+                name = recipient.get("display_name", "")
+                email = email or recipient.get("email_address", "")
+                phone = phone or recipient.get("phone_number", "")
+                if name:
+                    break
+
+        num_tickets = _ticket_count(order) if order_type == "Ticket" else 0
+
+        created_at_str = order.get("created_at", "")
+        try:
+            created_dt = datetime.fromisoformat(
+                created_at_str.replace("Z", "+00:00")
+            ).astimezone(EASTERN)
+            order_date = created_dt.date().isoformat()
+        except Exception:
+            order_date = date.isoformat()
+
+        transactions.append(
+            {
+                "name": name,
+                "phone": phone,
+                "email": email,
+                "type": order_type,
+                "num_tickets": num_tickets,
+                "amount_paid": amount_paid,
+                "amount_after_fees": amount_after_fees,
+                "date": order_date,
+            }
+        )
+
+    # Build summary
+    donations = [t for t in transactions if t["type"] == "Donation"]
+    tickets = [t for t in transactions if t["type"] == "Ticket"]
+
+    summary = {
+        "total_donations": round(sum(t["amount_paid"] for t in donations), 2),
+        "total_tickets": sum(t["num_tickets"] for t in tickets),
+        "donor_names": [t["name"] for t in donations if t["name"]],
+        "ticket_buyers": [
+            {"name": t["name"], "tickets": t["num_tickets"]}
+            for t in tickets
+            if t["name"]
+        ],
+        "total_after_fees": round(
+            sum(t["amount_after_fees"] for t in transactions), 2
+        ),
+    }
+
+    return transactions, summary
