@@ -1,5 +1,5 @@
 """
-Orchestrator — runs the nightly Square → Sheets → WhatsApp pipeline.
+Orchestrator — runs the nightly Square → Sheets → Email pipeline.
 """
 import sys
 from datetime import datetime
@@ -28,8 +28,8 @@ def main() -> None:
         print(f"ERROR: {error_msg}", file=sys.stderr)
         try:
             email_notifier.send_error(today, error_msg)
-        except Exception as wa_exc:
-            print(f"WhatsApp error alert also failed: {wa_exc}", file=sys.stderr)
+        except Exception as email_exc:
+            print(f"Error email alert also failed: {email_exc}", file=sys.stderr)
         sys.exit(1)
 
     print(f"Fetched {len(transactions)} transaction(s) from Square.")
@@ -55,7 +55,7 @@ def main() -> None:
         sheet_error = str(exc)
         print(f"ERROR: Sheet update failed: {sheet_error}", file=sys.stderr)
 
-    # 5. Send WhatsApp summary
+    # 5. Send email summary
     if sheet_error:
         summary_note = f"\n(NOTE: Sheet update failed: {sheet_error})"
     else:
@@ -65,9 +65,9 @@ def main() -> None:
         email_notifier.send_summary(today, summary)
         if summary_note:
             email_notifier.send_error(today, f"Sheet update failed: {sheet_error}")
-        print("WhatsApp summary sent.")
+        print("Email summary sent.")
     except Exception as exc:
-        print(f"ERROR: WhatsApp notification failed: {exc}", file=sys.stderr)
+        print(f"ERROR: Email notification failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
     if sheet_error:
